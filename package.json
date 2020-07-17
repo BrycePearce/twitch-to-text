@@ -9,6 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "fluent-ffmpeg": "^2.1.2"
+    "express": "^4.17.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "socket.io": "^2.3.0"
   }
 }

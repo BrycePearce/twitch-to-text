@@ -1,21 +1,33 @@
-const ffmpeg = require('fluent-ffmpeg');
-const child = require('child_process');
-const myREPL = child.spawn('streamlink', ['twitch.tv/mew2king', 'audio_only', '-O']);
+// Node
 const {
-    Readable
+    Readable,
 } = require('stream');
+const child = require('child_process');
+
+// Express
+const app = require('express')();
+
+// Socket.io
+const server = require('http').createServer(app);
+const io = require('socket.io')(server);
+
+// Audio/video processing
+const ffmpeg = require('fluent-ffmpeg');
+
+// Streamlink
+const streamlink = child.spawn('streamlink', ['twitch.tv/artosis', 'audio_only', '-O']);
 
 let bufferedAudio = [];
 
-myREPL.stdout.on('data', (data) => {
+streamlink.stdout.on('data', (data) => {
     bufferedAudio.push(data);
 });
 
-myREPL.stdin.on('end', function () {
+streamlink.stdin.on('end', function () {
     process.stdout.write('REPL stream ended.');
 });
 
-myREPL.on('exit', function (code) {
+streamlink.on('exit', function (code) {
     console.log('Stream ended')
     process.exit(code);
 });
@@ -27,25 +39,31 @@ const runExtractor = setInterval(() => {
 function extract() {
     if (bufferedAudio.length >= 30) {
         const joinedAudio = Readable.from(Buffer.concat(bufferedAudio));
-        convert(joinedAudio, 'output.mp3', (err) => {
+        convert(joinedAudio, 'audio.mp3', (err) => {
             if (!err) {
-                console.log('done!')
+                translate();
                 stopExtracting();
             }
         });
     }
 }
 
+function translate() {
+    console.log('processing file here...')
+}
+
 function convert(input, output, callback) {
-    ffmpeg(input)
-        .output(output)
-        .on('end', function () {
-            console.log('donezo');
-            callback(null)
-        }).on('error', function (err) {
-            console.log('error: ', err);
+    const command = ffmpeg(input)
+        .on('error', (err) => {
             callback(err);
-        }).run();
+        })
+        .on('end', () => {
+            callback(null)
+        }).output(output)
+
+    command.run();
+    // const ffstream = command.pipe(); // this has results in-memory?
+    // when switching to in-memory, wait for stream to finish (https://stackoverflow.com/questions/37837132/how-to-wait-for-a-stream-to-finish-piping-nodejs)
 }
 
 function stopExtracting() {
