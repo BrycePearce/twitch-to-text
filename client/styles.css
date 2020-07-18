@@ -1,0 +1,9 @@
+#twitch-embed {
+  display: flex;
+  justify-content: center;
+}
+
+.text-area {
+  margin-left: 5em;
+  margin-right: 5em;
+}

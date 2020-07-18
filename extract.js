@@ -3,14 +3,16 @@ const {
     Readable,
 } = require('stream');
 const child = require('child_process');
-const https = require('https');
+const path = require('path');
 const fs = require('fs');
 
 // Env
 require('dotenv').config();
 
 // Express
-const app = require('express')();
+const express = require('express');
+const app = express();
+const staticPath = path.join(__dirname, '/client');
 
 // Socket.io
 const server = require('http').createServer(app);
@@ -24,7 +26,9 @@ const speech = require('@google-cloud/speech');
 const speechClient = new speech.SpeechClient();
 
 // Streamlink
-const streamlink = child.spawn('streamlink', ['twitch.tv/destiny', 'audio_only', '-O']);
+const streamlink = child.spawn('streamlink', ['twitch.tv/esl_sc2', 'audio_only', '-O']);
+
+app.use(express.static(staticPath));
 
 let bufferedAudio = [];
 
@@ -38,28 +42,35 @@ streamlink.on('exit', (code) => {
 });
 
 const runExtractor = setInterval(() => {
-    extract();
+    extractAudio();
 }, 3000);
 
-async function extract() {
+function extractAudio() {
     if (bufferedAudio.length >= 15) {
         const joinedAudio = Readable.from(Buffer.concat(bufferedAudio));
+        bufferedAudio.length = 0;
         convert(joinedAudio, 'audio.mp3', async (err) => {
             if (!err) {
                 const [rawTranscriptionData] = await getSpeechAnalysis();
+                // Find the translation with the highest confidence
                 const {
                     transcript,
                     confidence
                 } = rawTranscriptionData.results.reduce((prev, current) => {
-                    if (+current.alternatives[0].confidence > +prev.alternatives[0].confidence) {
+                    if (current.alternatives[0].confidence > prev.alternatives[0].confidence) {
                         return current;
                     } else {
                         return prev;
                     }
                 }).alternatives[0];
 
-                console.log(transcript, confidence);
-                stopExtracting();
+                // update client
+                io.emit('translation', {
+                    transcript,
+                    confidence
+                });
+
+                // stopExtracting();
             }
         });
     }
@@ -97,3 +108,7 @@ function convert(input, output, callback) {
 function stopExtracting() {
     clearInterval(runExtractor);
 }
+
+server.listen(3000, () => {
+    console.log('listening on:', 3000)
+});
